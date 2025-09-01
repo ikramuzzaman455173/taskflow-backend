@@ -29,8 +29,8 @@ The server listens on `PORT` (default **5000**).
 
 ### Default Admin (created once, first run only)
 
-- **Name:** Admin User  
-- **Email:** admin@taskflow.com  
+- **Name:** Admin User
+- **Email:** admin@taskflow.com
 - **Password:** admin123
 
 If you delete all admins, the next server start will create the default admin again.
