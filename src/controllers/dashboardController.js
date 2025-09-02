@@ -30,59 +30,150 @@ export const DashboardController = {
     });
   },
 
+  // admin: async (req, res) => {
+  //   const [totalUsers, activeUsers, totalTasks, completedTasks] = await Promise.all([
+  //     User.countDocuments({}),
+  //     User.countDocuments({ status: 'active' }),
+  //     Task.countDocuments({}),
+  //     Task.countDocuments({ status: 'completed' }),
+  //   ]);
+
+  //   const completionRate = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+  //   // Task status overview
+  //   const pendingCount = await Task.countDocuments({ status: 'pending' });
+  //   const overdueCount = await Task.countDocuments({ status: 'pending', dueDate: { $lt: new Date() } });
+
+  //   // Recent activity (last 10)
+  //   const recentActivity = await Activity.find({}).sort({ createdAt: -1 }).limit(10).lean();
+
+  //   // Users table with tasks count
+  //   const usersWithCounts = await User.aggregate([
+  //     { $sort: { createdAt: 1 } },
+  //     {
+  //       $lookup: {
+  //         from: 'tasks',
+  //         localField: '_id',
+  //         foreignField: 'createdBy',
+  //         as: 'tasks',
+  //       },
+  //     },
+  //     {
+  //       $addFields: {
+  //         tasksCount: { $size: '$tasks' },
+  //       },
+  //     },
+  //     {
+  //       $project: {
+  //         _id: 1,
+  //         name: 1,
+  //         email: 1,
+  //         role: 1,
+  //         status: 1,
+  //         joinedAt: '$createdAt',
+  //         lastActiveAt: 1,
+  //         tasksCount: 1,
+  //       },
+  //     },
+  //   ]);
+
+  //   // System health: simplistic view
+  //   const dbReady = mongoose.connection.readyState === 1;
+  //   const systemHealth = {
+  //     serverStatus: 'Online',
+  //     database: dbReady ? 'Healthy' : 'Disconnected',
+  //     responseTimeMs: 120, // static placeholder; front-end can ignore/replace
+  //   };
+
+  //   res.json({
+  //     success: true,
+  //     data: {
+  //       metrics: {
+  //         totalUsers,
+  //         activeUsers,
+  //         totalTasks,
+  //         completionRate,
+  //       },
+  //       statusOverview: {
+  //         completed: completedTasks,
+  //         pending: pendingCount,
+  //         overdue: overdueCount,
+  //       },
+  //       systemHealth,
+  //       recentActivity,
+  //       users: usersWithCounts,
+  //     },
+  //   });
+  // },
+
   admin: async (req, res) => {
-    const [totalUsers, activeUsers, totalTasks, completedTasks] = await Promise.all([
+  try {
+    const now = new Date();
+
+    const [
+      totalUsers,
+      activeUsers,
+      totalTasks,
+      completedTasks,
+      pendingCount,
+      overdueCount,
+      recentActivity,
+      usersWithCounts,
+    ] = await Promise.all([
       User.countDocuments({}),
       User.countDocuments({ status: 'active' }),
       Task.countDocuments({}),
       Task.countDocuments({ status: 'completed' }),
+      Task.countDocuments({ status: 'pending' }),
+      // Or: { status: { $ne: 'completed' }, dueDate: { $lt: now } }
+      Task.countDocuments({ status: 'pending', dueDate: { $lt: now } }),
+      Activity.find({}, { _id: 1, type: 1, message: 1, createdAt: 1, actor: 1 })
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .lean(),
+      User.aggregate([
+        { $sort: { createdAt: 1 } },
+        {
+          $lookup: {
+            from: 'tasks',
+            let: { uid: '$_id' },
+            pipeline: [
+              { $match: { $expr: { $eq: ['$createdBy', '$$uid'] } } },
+              { $count: 'count' },
+            ],
+            as: 'taskCount',
+          },
+        },
+        {
+          $addFields: {
+            tasksCount: { $ifNull: [{ $arrayElemAt: ['$taskCount.count', 0] }, 0] },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            email: 1,
+            role: 1,
+            status: 1,
+            joinedAt: '$createdAt',
+            lastActiveAt: 1,
+            tasksCount: 1,
+          },
+        },
+      ]),
     ]);
 
-    const completionRate = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    const completionRate = totalTasks
+      ? Math.round((completedTasks / totalTasks) * 100)
+      : 0;
 
-    // Task status overview
-    const pendingCount = await Task.countDocuments({ status: 'pending' });
-    const overdueCount = await Task.countDocuments({ status: 'pending', dueDate: { $lt: new Date() } });
-
-    // Recent activity (last 10)
-    const recentActivity = await Activity.find({}).sort({ createdAt: -1 }).limit(10).lean();
-
-    // Users table with tasks count
-    const usersWithCounts = await User.aggregate([
-      { $sort: { createdAt: 1 } },
-      {
-        $lookup: {
-          from: 'tasks',
-          localField: '_id',
-          foreignField: 'createdBy',
-          as: 'tasks',
-        },
-      },
-      {
-        $addFields: {
-          tasksCount: { $size: '$tasks' },
-        },
-      },
-      {
-        $project: {
-          _id: 1,
-          name: 1,
-          email: 1,
-          role: 1,
-          status: 1,
-          joinedAt: '$createdAt',
-          lastActiveAt: 1,
-          tasksCount: 1,
-        },
-      },
-    ]);
-
-    // System health: simplistic view
     const dbReady = mongoose.connection.readyState === 1;
     const systemHealth = {
       serverStatus: 'Online',
       database: dbReady ? 'Healthy' : 'Disconnected',
-      responseTimeMs: 120, // static placeholder; front-end can ignore/replace
+      // Consider removing or computing a real value:
+      responseTimeMs: 120,
     };
 
     res.json({
@@ -104,5 +195,14 @@ export const DashboardController = {
         users: usersWithCounts,
       },
     });
-  },
+  } catch (err) {
+    // Log and return a standard error shape
+    console.error('admin dashboard error', err);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+},
+
 };

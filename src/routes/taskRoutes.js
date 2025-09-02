@@ -9,5 +9,5 @@ router.get('/:id', authRequired, TaskController.getOne);
 router.post('/create', authRequired, TaskController.create);
 router.put('/:id', authRequired, TaskController.update);
 router.delete('/:id', authRequired, TaskController.remove);
-router.delete('/removeAll', authRequired, TaskController.removeAll);
+router.delete('/remove-all', authRequired, TaskController.removeAll);
 export default router;
