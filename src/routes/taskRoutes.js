@@ -8,6 +8,6 @@ router.get('/summary', authRequired, TaskController.summary);
 router.get('/:id', authRequired, TaskController.getOne);
 router.post('/create', authRequired, TaskController.create);
 router.put('/:id', authRequired, TaskController.update);
-router.delete('/:id', authRequired, TaskController.remove);
 router.delete('/remove-all', authRequired, TaskController.removeAll);
+router.delete('/:id', authRequired, TaskController.removeOne);
 export default router;

@@ -1,78 +1,228 @@
-import Joi from 'joi';
-import { Task } from '../models/Task.js';
+import Joi from "joi";
+import { Task } from "../models/Task.js";
 
 const createSchema = Joi.object({
   title: Joi.string().min(2).max(120).required(),
-  description: Joi.string().allow(''),
-  priority: Joi.string().valid('low','medium','high').default('medium'),
-  status: Joi.string().valid('pending','completed').default('pending'),
-  dueDate: Joi.date().optional(),
+  description: Joi.string().allow(""),
+  priority: Joi.string().valid("low", "medium", "high").default("medium"),
+  status: Joi.string().valid("pending", "completed").default("pending"),
+  dueDate: Joi.date().optional()
 });
 
 const updateSchema = Joi.object({
   title: Joi.string().min(2).max(120).optional(),
-  description: Joi.string().allow(''),
-  priority: Joi.string().valid('low','medium','high'),
-  status: Joi.string().valid('pending','completed'),
-  dueDate: Joi.date().allow(null),
+  description: Joi.string().allow(""),
+  priority: Joi.string().valid("low", "medium", "high"),
+  status: Joi.string().valid("pending", "completed"),
+  dueDate: Joi.date().allow(null)
 });
 
 export const TaskController = {
   list: async (req, res) => {
-    const { status, priority, search, sort='createdAt', order='desc' } = req.query;
+    const {
+      status,
+      priority,
+      search,
+      sort = "createdAt",
+      order = "desc"
+    } = req.query;
     const q = { createdBy: req.user.id };
     if (status) q.status = status;
     if (priority) q.priority = priority;
-    if (search) q.title = { $regex: search, $options: 'i' };
-    const tasks = await Task.find(q).sort({ [sort]: order === 'asc' ? 1 : -1 }).lean();
+    if (search) q.title = { $regex: search, $options: "i" };
+    const tasks = await Task.find(q)
+      .sort({ [sort]: order === "asc" ? 1 : -1 })
+      .lean();
     res.json({ success: true, data: tasks });
   },
 
   getOne: async (req, res) => {
-    const t = await Task.findOne({ _id: req.params.id, createdBy: req.user.id }).lean();
-    if (!t) return res.status(404).json({ success: false, error: 'Task not found' });
+    const t = await Task.findOne({
+      _id: req.params.id,
+      createdBy: req.user.id
+    }).lean();
+    if (!t)
+      return res.status(404).json({ success: false, error: "Task not found" });
     res.json({ success: true, data: t });
   },
 
   create: async (req, res) => {
     const { error, value } = createSchema.validate(req.body);
-    if (error) return res.status(400).json({ success: false, error: error.message });
+    if (error)
+      return res.status(400).json({ success: false, error: error.message });
     const t = await Task.create({ ...value, createdBy: req.user.id });
     res.status(201).json({ success: true, data: t });
   },
 
   update: async (req, res) => {
     const { error, value } = updateSchema.validate(req.body);
-    if (error) return res.status(400).json({ success: false, error: error.message });
-    const t = await Task.findOneAndUpdate({ _id: req.params.id, createdBy: req.user.id }, value, { new: true });
-    if (!t) return res.status(404).json({ success: false, error: 'Task not found' });
+    if (error)
+      return res.status(400).json({ success: false, error: error.message });
+    const t = await Task.findOneAndUpdate(
+      { _id: req.params.id, createdBy: req.user.id },
+      value,
+      { new: true }
+    );
+    if (!t)
+      return res.status(404).json({ success: false, error: "Task not found" });
     res.json({ success: true, data: t });
   },
 
-  remove: async (req, res) => {
-    const t = await Task.findOneAndDelete({ _id: req.params.id, createdBy: req.user.id });
-    if (!t) return res.status(404).json({ success: false, error: 'Task not found' });
-    res.json({ success: true, message: 'Deleted' });
+  removeOne: async (req, res) => {
+    const t = await Task.findOneAndDelete({
+      _id: req.params.id,
+      createdBy: req.user.id
+    });
+    if (!t)
+      return res.status(404).json({ success: false, error: "Task not found" });
+    res.json({ success: true, message: "Deleted" });
   },
+
+  // removeAll: async (req, res) => {
+  //   const result = await Task.deleteMany({ createdBy: req.user.id });
+  //   res.json({ success: true, message: `Deleted ${result.deletedCount} tasks` });
+  // },
 
   removeAll: async (req, res) => {
-    const result = await Task.deleteMany({ createdBy: req.user.id });
-    res.json({ success: true, message: `Deleted ${result.deletedCount} tasks` });
+    try {
+      const { status } = req.body || {};
+
+      const allowed = ["all", "pending", "completed", "overdue"];
+      if (!allowed.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'Invalid status. Use "all", "pending", "completed", or "overdue".'
+        });
+      }
+
+      // Base scope: only delete tasks owned by the user
+      const ownerScope = { createdBy: req.user.id };
+      const now = new Date();
+
+      let filter;
+
+      switch (status) {
+        case "all":
+          filter = { ...ownerScope };
+          break;
+
+        case "completed":
+          filter = { ...ownerScope, status: "completed" };
+          break;
+
+        case "overdue":
+          filter = {
+            ...ownerScope,
+            dueDate: { $lt: now },
+            status: { $ne: "completed" }
+          };
+          break;
+
+        case "pending":
+          filter = {
+            ...ownerScope,
+            $or: [
+              { status: "pending" }, // explicitly pending
+              {
+                // overdue derived condition
+                dueDate: { $lt: now },
+                status: { $ne: "completed" }
+              }
+            ]
+          };
+          break;
+      }
+
+      const result = await Task.deleteMany(filter);
+
+      return res.json({
+        success: true,
+        message: `Deleted ${result.deletedCount} task(s)`,
+        deletedCount: result.deletedCount
+      });
+    } catch (err) {
+      console.error("removeAll error:", err);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to remove tasks"
+      });
+    }
   },
 
+  // summary: async (req, res) => {
+  //   const now = new Date();
+  //   const tasks = await Task.find({ createdBy: req.user.id }).lean();
+  //   const total = tasks.length;
+  //   const completed = tasks.filter((t) => t.status === "completed").length;
+  //   const inProgress = tasks.filter((t) => t.status !== "completed").length;
+  //   const overdue = tasks.filter(
+  //     (t) => t.status !== "completed" && t.dueDate && t.dueDate < now
+  //   ).length;
+  //   const byPriority = {
+  //     high: tasks.filter((t) => t.priority === "high").length,
+  //     medium: tasks.filter((t) => t.priority === "medium").length,
+  //     low: tasks.filter((t) => t.priority === "low").length
+  //   };
+  //   const recent = tasks
+  //     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  //     .slice(0, 4);
+  //   res.json({
+  //     success: true,
+  //     data: { total, inProgress, completed, overdue, byPriority, recent }
+  //   });
+  // }
+
   summary: async (req, res) => {
-    const now = new Date();
-    const tasks = await Task.find({ createdBy: req.user.id }).lean();
-    const total = tasks.length;
-    const completed = tasks.filter(t => t.status === 'completed').length;
-    const inProgress = tasks.filter(t => t.status !== 'completed').length;
-    const overdue = tasks.filter(t => t.status !== 'completed' && t.dueDate && t.dueDate < now).length;
-    const byPriority = {
-      high: tasks.filter(t => t.priority === 'high').length,
-      medium: tasks.filter(t => t.priority === 'medium').length,
-      low: tasks.filter(t => t.priority === 'low').length,
-    };
-    const recent = tasks.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0,4);
-    res.json({ success: true, data: { total, inProgress, completed, overdue, byPriority, recent } });
-  },
+    try {
+      const now = new Date();
+      const tasks = await Task.find({ createdBy: req.user.id }).lean();
+
+      const total = tasks.length;
+      let completed = 0;
+      let pending = 0;
+      let overdue = 0;
+
+      for (const t of tasks) {
+        if (t.status === "completed") {
+          completed++;
+        } else {
+          // not completed
+          if (t.dueDate && new Date(t.dueDate) < now) {
+            overdue++;
+          } else {
+            pending++;
+          }
+        }
+      }
+
+      const inProgress = pending + overdue;
+
+      const byPriority = {
+        high: tasks.filter((t) => t.priority === "high").length,
+        medium: tasks.filter((t) => t.priority === "medium").length,
+        low: tasks.filter((t) => t.priority === "low").length
+      };
+
+      const recent = [...tasks]
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 4);
+
+      res.json({
+        success: true,
+        data: {
+          total,
+          inProgress,
+          pending, // ✅ new field
+          completed,
+          overdue,
+          byPriority,
+          recent
+        }
+      });
+    } catch (err) {
+      console.error("summary stats error:", err);
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
 };
