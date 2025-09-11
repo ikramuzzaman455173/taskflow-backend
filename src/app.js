@@ -23,7 +23,7 @@ app.use(helmet());
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(cookieParser());
-const origin = process.env.CLIENT_ORIGIN || 'http://localhost:5174';
+const origin = process.env.CLIENT_ORIGIN;
 app.use(cors({ origin, credentials: true }));
 
 const limiter = rateLimit({

@@ -33,6 +33,7 @@ export const AdminController = {
     }));
     res.json({ success: true, data });
   },
+
   // makeAdmin: async (req, res) => {
   //   const user = await User.findByIdAndUpdate(req.params.id, { role: 'admin' }, { new: true });
   //   if (!user) return res.status(404).json({ success: false, error: 'User not found' });
@@ -140,6 +141,31 @@ export const AdminController = {
     }
   },
 
+  // removeUser: async (req, res) => {
+  //   try {
+  //     const user = await User.findById(req.params.id);
+  //     if (!user) {
+  //       return res
+  //         .status(404)
+  //         .json({ success: false, error: "User not found" });
+  //     }
+
+  //     // log activity *before* deletion so we still have the name/id
+  //     await Activity.create({
+  //       type: "user_deleted",
+  //       message: `User deleted: ${user.name}`,
+  //       user: user._id
+  //     });
+
+  //     await Task.deleteMany({ createdBy: user._id });
+  //     await user.deleteOne();
+
+  //     res.json({ success: true, message: "User and tasks removed" });
+  //   } catch (err) {
+  //     res.status(500).json({ success: false, error: err.message });
+  //   }
+  // }
+
   removeUser: async (req, res) => {
     try {
       const user = await User.findById(req.params.id);
@@ -149,17 +175,26 @@ export const AdminController = {
           .json({ success: false, error: "User not found" });
       }
 
-      // log activity *before* deletion so we still have the name/id
+      // check if any task exists for this user
+      const taskExists = await Task.exists({ createdBy: user._id });
+      if (taskExists) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "Cannot remove user because tasks are associated with this account"
+        });
+      }
+
+      // log activity *before* deletion
       await Activity.create({
         type: "user_deleted",
         message: `User deleted: ${user.name}`,
         user: user._id
       });
 
-      await Task.deleteMany({ createdBy: user._id });
       await user.deleteOne();
 
-      res.json({ success: true, message: "User and tasks removed" });
+      res.json({ success: true, message: "User removed successfully" });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }
