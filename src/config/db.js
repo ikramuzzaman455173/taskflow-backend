@@ -7,3 +7,4 @@ export async function connectDB(uri) {
   });
   return mongoose.connection;
 }
+

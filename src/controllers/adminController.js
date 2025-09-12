@@ -89,6 +89,35 @@ export const AdminController = {
     }
   },
 
+  // demote to normal user
+  makeUser: async (req, res) => {
+    try {
+      const user = await User.findByIdAndUpdate(
+        req.params.id,
+        { role: "user" }, // set role back to normal user
+        { new: true }
+      );
+
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, error: "User not found" });
+      }
+
+      // log activity
+      await Activity.create({
+        type: "role_change",
+        message: `${user.name} demoted to User`,
+        user: user._id
+        // actor: req.user._id, // optional: who performed it
+      });
+
+      res.json({ success: true, data: { id: user._id, role: user.role } });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  },
+
   activate: async (req, res) => {
     try {
       const user = await User.findByIdAndUpdate(
