@@ -56,7 +56,6 @@ export const AuthController = {
   },
 
   login: async (req, res) => {
-    console.log("hello there");
     const { error, value } = loginSchema.validate(req.body);
 
     if (error) return res.status(400).json({ success: false, error: error.message });
