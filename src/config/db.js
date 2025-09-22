@@ -11,10 +11,11 @@
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 dotenv.config();
+const uri = process.env.MONGO_URL;
 export const connectDB = async () => {
   try {
     console.log("Attempting to connect to database.....");
-    await mongoose.connect(process.env.MONGO_URI, {
+    await mongoose.connect(uri, {
        autoIndex: true,
     });
     console.log("Connected to database.....");
