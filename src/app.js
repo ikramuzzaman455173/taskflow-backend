@@ -4,7 +4,7 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+// import rateLimit from "express-rate-limit";
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 import authRoutes from "./routes/authRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
@@ -26,11 +26,11 @@ const origin = process.env.CLIENT_ORIGIN;
 const methods = ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE"];
 app.use(cors({ origin, methods, credentials: true }));
 
-const limiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 100
-});
-app.use(limiter);
+// const limiter = rateLimit({
+//   windowMs: 60 * 1000,
+//   max: 100
+// });
+// app.use(limiter);
 
 // Routes
 app.get("/", (req, res) =>
@@ -41,7 +41,7 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/health", healthRoutes);
+app.use("/api/healths", healthRoutes);
 
 // Errors
 app.use(notFound);

@@ -138,33 +138,16 @@ async function seedDemoDataIfNeeded() {
   console.log("🌱 Demo data seeded");
 }
 
-// async function start() {
-//   try {
-//     await connectDB();
-//     // await ensureDefaultAdmin();
-//     // await seedDemoDataIfNeeded();
-//     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-//   } catch (err) {
-//     console.error(err);
-//     process.exit(1);
-//   }
-// }
-
-// start();
-
-
-
-const server = async () => {
+async function start() {
   try {
     await connectDB();
-
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${process.env.PORT}`);
-    });
-  } catch (error) {
-    console.log("Failed to strt server.....", error.message);
+    await ensureDefaultAdmin();
+    await seedDemoDataIfNeeded();
+    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+  } catch (err) {
+    console.error(err);
     process.exit(1);
   }
-};
+}
 
-server();
+start();
